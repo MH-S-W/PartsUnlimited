@@ -1,0 +1,40 @@
+name: CD - Deploy to Local IIS
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy-to-iis:
+    name: Deploy to IIS (self-hosted)
+    runs-on: [self-hosted, windows]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v1
+
+      - name: Restore NuGet packages
+        run: nuget restore PartsUnlimited.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1
+
+      - name: Build solution (Release)
+        run: msbuild PartsUnlimited.sln /p:Configuration=Release /m
+
+      - name: Deploy to local IIS
+        env:
+          PROJECT_PATH: src/PartsUnlimitedWebsite/PartsUnlimitedWebsite.csproj
+          PUBLISH_DIR: C:\inetpub\wwwroot\PartsUnlimited
+          SITE_NAME: PartsUnlimited
+          APPPOOL_NAME: PartsUnlimitedAppPool
+          PORT: 8080
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-to-iis.ps1 \
+            -ProjectPath "$env:PROJECT_PATH" \
+            -PublishDir "$env:PUBLISH_DIR" \
+            -SiteName "$env:SITE_NAME" \
+            -AppPoolName "$env:APPPOOL_NAME" \
+            -Port $env:PORT
