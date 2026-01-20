@@ -1,0 +1,9 @@
+version: '2'
+
+services:
+  ci-build:
+    image: mcr.microsoft.com/dotnet/framework/aspnet:4.8-windowsservercore-ltsc2019
+    volumes:
+      - .:/src
+    working_dir: /src
+    command: /bin/bash -c "dotnet restore ./PartsUnlimited.sln && dotnet publish ./PartsUnlimited.sln -c Release -o ./obj/Docker/publish"

@@ -1,0 +1,47 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v1
+
+    - name: Restore NuGet packages
+      run: nuget restore PartsUnlimited.sln
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Build solution (Release)
+      run: msbuild PartsUnlimited.sln /p:Configuration=Release /m
+
+    - name: Run unit tests
+      run: |
+        # Find test assemblies and run with vstest.console.exe
+        $testExe = 'vstest.console.exe'
+        $vsWhere = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe"
+        if (Test-Path $vsWhere) {
+          $vsPath = & $vsWhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath | Select-Object -First 1
+          $vstest = Join-Path $vsPath 'Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe'
+          if (Test-Path $vstest) { $testExe = $vstest }
+        }
+        Get-ChildItem -Path . -Recurse -Filter '*PartsUnlimited.UnitTests*.dll' | ForEach-Object { & $testExe $_.FullName }
+
+    - name: Publish build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: partsunlimited-build
+        path: |
+          src/**/bin/Release
+          src/**/bin

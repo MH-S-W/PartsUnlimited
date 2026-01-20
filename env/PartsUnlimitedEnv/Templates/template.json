@@ -1,0 +1,202 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "sites_PartsUnlimitedDevSecOps_name": {
+      "defaultValue": "PartsUnlimitedDevSecOps",
+      "type": "String"
+    },
+    "serverfarms_ASP_DevSecOps_8caa_externalid": {
+      "defaultValue": "/subscriptions/ef766091-e87e-45ba-b95b-7781d663943c/resourceGroups/DevSecOps/providers/Microsoft.Web/serverfarms/ASP-DevSecOps-8caa",
+      "type": "String"
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2022-03-01",
+      "name": "[parameters('sites_PartsUnlimitedDevSecOps_name')]",
+      "location": "West US",
+      "kind": "app",
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "partsunlimiteddevsecops.azurewebsites.net",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "partsunlimiteddevsecops.scm.azurewebsites.net",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "serverFarmId": "[parameters('serverfarms_ASP_DevSecOps_8caa_externalid')]",
+        "reserved": false,
+        "isXenon": false,
+        "hyperV": false,
+        "vnetRouteAllEnabled": false,
+        "vnetImagePullEnabled": false,
+        "vnetContentShareEnabled": false,
+        "siteConfig": {
+          "numberOfWorkers": 1,
+          "acrUseManagedIdentityCreds": false,
+          "alwaysOn": true,
+          "http20Enabled": false,
+          "functionAppScaleLimit": 0,
+          "minimumElasticInstanceCount": 0
+        },
+        "scmSiteAlsoStopped": false,
+        "clientAffinityEnabled": true,
+        "clientCertEnabled": false,
+        "clientCertMode": "Required",
+        "hostNamesDisabled": false,
+        "customDomainVerificationId": "2F29C0810FD53930D0EA60078F480F74269DC2619298F1A6366D0E42158C017A",
+        "containerSize": 0,
+        "dailyMemoryTimeQuota": 0,
+        "httpsOnly": true,
+        "redundancyMode": "None",
+        "publicNetworkAccess": "Enabled",
+        "storageAccountRequired": false,
+        "keyVaultReferenceIdentity": "SystemAssigned"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(parameters('sites_PartsUnlimitedDevSecOps_name'), '/ftp')]",
+      "location": "West US",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('sites_PartsUnlimitedDevSecOps_name'))]"
+      ],
+      "properties": {
+        "allow": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(parameters('sites_PartsUnlimitedDevSecOps_name'), '/scm')]",
+      "location": "West US",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('sites_PartsUnlimitedDevSecOps_name'))]"
+      ],
+      "properties": {
+        "allow": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(parameters('sites_PartsUnlimitedDevSecOps_name'), '/web')]",
+      "location": "West US",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('sites_PartsUnlimitedDevSecOps_name'))]"
+      ],
+      "properties": {
+        "numberOfWorkers": 1,
+        "defaultDocuments": [
+          "Default.htm",
+          "Default.html",
+          "Default.asp",
+          "index.htm",
+          "index.html",
+          "iisstart.htm",
+          "default.aspx",
+          "index.php",
+          "hostingstart.html"
+        ],
+        "netFrameworkVersion": "v4.0",
+        "requestTracingEnabled": false,
+        "remoteDebuggingEnabled": false,
+        "remoteDebuggingVersion": "VS2019",
+        "httpLoggingEnabled": false,
+        "acrUseManagedIdentityCreds": false,
+        "logsDirectorySizeLimit": 35,
+        "detailedErrorLoggingEnabled": false,
+        "publishingUsername": "$PartsUnlimitedDevSecOps",
+        "scmType": "VSTSRM",
+        "use32BitWorkerProcess": true,
+        "webSocketsEnabled": false,
+        "alwaysOn": true,
+        "managedPipelineMode": "Integrated",
+        "virtualApplications": [
+          {
+            "virtualPath": "/",
+            "physicalPath": "site\\wwwroot",
+            "preloadEnabled": true
+          }
+        ],
+        "loadBalancing": "LeastRequests",
+        "experiments": {
+          "rampUpRules": []
+        },
+        "autoHealEnabled": false,
+        "vnetRouteAllEnabled": false,
+        "vnetPrivatePortsCount": 0,
+        "publicNetworkAccess": "Enabled",
+        "localMySqlEnabled": false,
+        "ipSecurityRestrictions": [
+          {
+            "ipAddress": "Any",
+            "action": "Allow",
+            "priority": 2147483647,
+            "name": "Allow all",
+            "description": "Allow all access"
+          }
+        ],
+        "scmIpSecurityRestrictions": [
+          {
+            "ipAddress": "Any",
+            "action": "Allow",
+            "priority": 2147483647,
+            "name": "Allow all",
+            "description": "Allow all access"
+          }
+        ],
+        "scmIpSecurityRestrictionsUseMain": false,
+        "http20Enabled": false,
+        "minTlsVersion": "1.2",
+        "scmMinTlsVersion": "1.2",
+        "ftpsState": "FtpsOnly",
+        "preWarmedInstanceCount": 0,
+        "functionsRuntimeScaleMonitoringEnabled": false,
+        "minimumElasticInstanceCount": 0,
+        "azureStorageAccounts": {}
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/deployments",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(parameters('sites_PartsUnlimitedDevSecOps_name'), '/521675512955502')]",
+      "location": "West US",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('sites_PartsUnlimitedDevSecOps_name'))]"
+      ],
+      "properties": {
+        "status": 4,
+        "author": "Sameh Saber",
+        "deployer": "VSTS",
+        "message": "{\"type\":\"Deployment\",\"commitId\":\"06414945d709c8f8089b5a03ad25458d3dec460f\",\"buildId\":\"86\",\"releaseId\":\"52\",\"buildNumber\":\"20230204.1\",\"releaseName\":\"Release-52\",\"repoProvider\":\"TfsGit\",\"repoName\":\"PartsUnlimited\",\"collectionUrl\":\"https://dev.azure.com/DiyarDevSecOps/\",\"teamProject\":\"9cac136d-6290-4d58-9223-f28c0c18de55\",\"buildProjectUrl\":\"https://dev.azure.com/DiyarDevSecOps/9cac136d-6290-4d58-9223-f28c0c18de55\",\"repositoryUrl\":\"\",\"branch\":\"master\",\"teamProjectName\":\"PartsUnlimited\",\"slotName\":\"production\"}",
+        "start_time": "2023-02-04T12:15:56.2030477Z",
+        "end_time": "2023-02-04T12:15:56.2030477Z",
+        "active": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/hostNameBindings",
+      "apiVersion": "2022-03-01",
+      "name": "[concat(parameters('sites_PartsUnlimitedDevSecOps_name'), '/', parameters('sites_PartsUnlimitedDevSecOps_name'), '.azurewebsites.net')]",
+      "location": "West US",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('sites_PartsUnlimitedDevSecOps_name'))]"
+      ],
+      "properties": {
+        "siteName": "PartsUnlimitedDevSecOps",
+        "hostNameType": "Verified"
+      }
+    }
+  ]
+}

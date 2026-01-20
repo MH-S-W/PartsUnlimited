@@ -1,0 +1,12 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "sites_PartsUnlimitedDevSecOps_name": {
+        "value": "PartsUnlimitedDevSecOps"
+      },
+      "serverfarms_ASP_DevSecOps_8caa_externalid": {
+        "value": "ASP-DevSecOps-8caa"
+      }
+    }
+}
