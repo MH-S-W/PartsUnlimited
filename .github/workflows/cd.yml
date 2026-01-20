@@ -1,40 +1,57 @@
-name: CD - Deploy to Local IIS
+git checkout -b fix/cd-workflow
 
+mkdir -p .github/workflows
+
+cat > .github/workflows/cd.yml <<'EOF'
+name: CD - Deploy to Local IIS
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master ]
 
 jobs:
-  deploy-to-iis:
-    name: Deploy to IIS (self-hosted)
-    runs-on: [self-hosted, windows]
+  deploy:
+    runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.x' # adjust if your project uses a different SDK
 
-      - name: Restore NuGet packages
-        run: nuget restore PartsUnlimited.sln
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1
-
-      - name: Build solution (Release)
-        run: msbuild PartsUnlimited.sln /p:Configuration=Release /m
-
-      - name: Deploy to local IIS
-        env:
-          PROJECT_PATH: src/PartsUnlimitedWebsite/PartsUnlimitedWebsite.csproj
-          PUBLISH_DIR: C:\inetpub\wwwroot\PartsUnlimited
-          SITE_NAME: PartsUnlimited
-          APPPOOL_NAME: PartsUnlimitedAppPool
-          PORT: 8080
+      - name: Restore dependencies
+        shell: pwsh
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-to-iis.ps1 \
-            -ProjectPath "$env:PROJECT_PATH" \
-            -PublishDir "$env:PUBLISH_DIR" \
-            -SiteName "$env:SITE_NAME" \
-            -AppPoolName "$env:APPPOOL_NAME" \
-            -Port $env:PORT
+          dotnet restore src/PartsUnlimitedWebsite/PartsUnlimitedWebsite.csproj
+
+      - name: Build
+        shell: pwsh
+        run: |
+          dotnet build src/PartsUnlimitedWebsite/PartsUnlimitedWebsite.csproj --configuration Release
+
+      - name: Deploy to IIS
+        shell: pwsh
+        env:
+          PROJECT_PATH: 'src/PartsUnlimitedWebsite'   # adjust if your project path differs
+          IIS_SITE_NAME: 'Default Web Site'           # adjust as needed
+        run: |
+          $script = Join-Path $GITHUB_WORKSPACE 'scripts/deploy-iis.ps1'
+          if (-not (Test-Path $script)) {
+            Write-Error "Deployment script not found: $script"
+            exit 1
+          }
+          # Invoke with -File so PowerShell treats subsequent tokens as parameters
+          pwsh -File $script -ProjectPath "${{ env.PROJECT_PATH }}" -IISSiteName "${{ env.IIS_SITE_NAME }}"
+EOF
+
+git add .github/workflows/cd.yml
+git commit -m "fix(ci): correct CD workflow invocation and avoid submodules"
+git push -u origin fix/cd-workflow
+
+# If you have GitHub CLI installed you can create the PR with:
+gh pr create --title "fix(ci): correct CD workflow invocation and avoid submodules" \
+  --body "Invoke deploy script with pwsh -File and disable submodules to avoid failures." --base master
