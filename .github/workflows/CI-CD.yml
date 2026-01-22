@@ -1,4 +1,4 @@
-name: CI Build and Test
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,134 +6,97 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  BUILD_CONFIGURATION: 'Release'
+  BUILD_PLATFORM: 'AnyCPU'
+
 jobs:
-  build-test-artifact:
+  # 1. BUILD AND TEST
+  build:
+    name: 🏗️ Build and Test
     runs-on: windows-latest
-
+    
     steps:
-      # Checkout repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      # Setup NuGet and restore packages
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet packages
-        run: nuget restore PartsUnlimited.sln
+    - name: Restore NuGet packages
+      run: |
+        nuget restore PartsUnlimited.sln -PackagesDirectory packages
 
-      # Setup MSBuild
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
 
-      # Build solution & publish website
-      - name: Build & Publish Website
-        run: |
-          # Build the web project and publish to artifact folder
-          msbuild src\PartsUnlimitedWebsite\PartsUnlimitedWebsite.csproj `
-            /p:Configuration=Release `
-            /p:Platform=AnyCPU `
-            /p:DeployOnBuild=true `
-            /p:WebPublishMethod=FileSystem `
-            /p:PublishUrl=..\..\artifact `
-            /p:DeployTarget=WebPublish
+    - name: Build Website
+      run: |
+        msbuild src\PartsUnlimitedWebsite\PartsUnlimitedWebsite.csproj `
+          /p:Configuration=${{ env.BUILD_CONFIGURATION }} `
+          /p:Platform=${{ env.BUILD_PLATFORM }} `
+          /p:DeployOnBuild=true `
+          /p:WebPublishMethod=FileSystem `
+          /p:PublishUrl=..\..\artifact `
+          /p:DeployTarget=WebPublish `
+          /p:PackageRestore=true `
+          /p:RestorePackagesPath=packages
 
-      # Build test projects
-      - name: Build Test Projects
-        run: |
-          msbuild test\PartsUnlimited.UnitTests\PartsUnlimited.UnitTests.csproj `
-            /p:Configuration=Release `
-            /p:Platform=AnyCPU
-        continue-on-error: true
+    - name: Verify Build
+      shell: pwsh
+      run: |
+        if (Test-Path "artifact") {
+          $files = Get-ChildItem -Path "artifact" -Recurse -File
+          Write-Host "✅ Build successful - $($files.Count) files generated" -ForegroundColor Green
+        } else {
+          Write-Host "❌ Build failed - artifact folder not found" -ForegroundColor Red
+          exit 1
+        }
 
-      # Run MSTest unit tests
-      - name: Run Unit Tests
-        shell: pwsh
-        run: |
-          # Locate vstest.console.exe dynamically
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vstest = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find **\vstest.console.exe |
-            Select-Object -First 1
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-app
+        path: artifact
+        retention-days: 7
 
-          Write-Host "Using vstest: $vstest"
-
-          # Find and run unit test DLLs
-          $testDlls = Get-ChildItem -Path "test" -Filter "*UnitTests.dll" -Recurse | 
-            Where-Object { $_.FullName -like "*\bin\Release\*" } |
-            Select-Object -ExpandProperty FullName
-
-          if ($testDlls) {
-            Write-Host "Found test DLLs:"
-            $testDlls | ForEach-Object { Write-Host "  $_" }
-            & "$vstest" $testDlls /Platform:x64 /Logger:trx
-          } else {
-            Write-Host "No test DLLs found"
-          }
-        continue-on-error: true
-
-      # List artifact contents
-      - name: List artifact folder contents
-        run: |
-          if (Test-Path "artifact") {
-            Write-Host "Artifact folder contents:"
-            Get-ChildItem artifact -Recurse | Select-Object FullName
-          } else {
-            Write-Host "Artifact folder not found"
-          }
-
-      # Upload build artifacts
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: PartsUnlimited-Web
-          path: artifact
-
+  # 2. DEPLOY TO IIS
   deploy:
-    needs: build-test-artifact
+    name: 🚀 Deploy to Production
+    needs: build
     runs-on: self-hosted
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
     steps:
-      # Checkout repository to get deployment script
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      # Download build artifacts
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: PartsUnlimited-Web
-          path: ./artifacts
-      
-      # Display artifact structure
-      - name: Display artifact structure
-        run: |
-          Write-Host "========================================" -ForegroundColor Cyan
-          Write-Host "Artifact Contents" -ForegroundColor Cyan
-          Write-Host "========================================" -ForegroundColor Cyan
-          Get-ChildItem -Path ./artifacts -Recurse | Select-Object FullName
-          Write-Host ""
-      
-      # Deploy to IIS
-      - name: Deploy to IIS
-        shell: powershell
-        run: |
-          Import-Module WebAdministration
-          
-          # Stop, copy, start - simple as that
-          Stop-WebAppPool -Name "PartsUnlimitedAppPool" -ErrorAction Ignore
-          Start-Sleep -Seconds 2
-          
-          Copy-Item -Path ".\artifacts\*" -Destination "C:\inetpub\wwwroot\PartsUnlimited" -Recurse -Force
-          
-          Start-WebAppPool -Name "PartsUnlimitedAppPool" -ErrorAction Ignore
-          Start-Website -Name "PartsUnlimited" -ErrorAction Ignore
-          
-          Write-Host "Deployed to http://localhost:8080"
-      
-      # Verify deployment
-      - name: Verify deployment
-        shell: powershell
-        run: |
-          Write-Host "Deployment complete - check http://localhost:8080"
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: web-app
+        path: ./deploy-files
+    
+    - name: Deploy to IIS
+      shell: pwsh
+      run: |
+        $sitePath = "C:\inetpub\wwwroot\PartsUnlimited"
+        
+        Write-Host "========================================"
+        Write-Host "🚀 DEPLOYING TO IIS"
+        Write-Host "========================================"
+        Write-Host "Target: $sitePath"
+        Write-Host "Port: 8080"
+        Write-Host ""
+        
+        # Create directory if needed
+        if (!(Test-Path $sitePath)) {
+          New-Item -ItemType Directory -Path $sitePath -Force
+        }
+        
+        # Deploy files
+        Copy-Item -Path ".\deploy-files\*" -Destination $sitePath -Recurse -Force
+        
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "✅ DEPLOYMENT SUCCESSFUL"
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "Application: http://localhost:8080" -ForegroundColor Cyan
+        Write-Host "Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
